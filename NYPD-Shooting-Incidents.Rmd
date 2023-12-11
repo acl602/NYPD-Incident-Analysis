@@ -1,0 +1,110 @@
+---
+title: "NYPD Shooting Incident Data Report"
+author: "Alvin Clark"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+```
+
+## Import Dataset
+
+This dataset includes the list of every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year.
+
+```{r}
+dataset_orignal <- read.csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+
+```
+
+## Tidy and Transform Data
+
+The following was executed to clean up the data for analysis:
+
+-   The occurrence date and time were converted from character/numeric formats into a single timestamp.
+-   All descriptive encodings were transformed into factor variables.
+-   Redundant columns were eliminated, which encompassed the removal of occurrence date/time information and an extra latitude/longitude column.
+
+```{r}
+dataset <- dataset_orignal
+
+# Select columns for modification
+factors = c("BORO","LOC_OF_OCCUR_DESC","PRECINCT","JURISDICTION_CODE","LOC_CLASSFCTN_DESC","LOCATION_DESC","PERP_AGE_GROUP","PERP_SEX","PERP_RACE","VIC_AGE_GROUP","VIC_SEX","VIC_RACE")
+remove = c("OCCUR_DATE","OCCUR_TIME","Lon_Lat")
+
+# Modify the dataset - Convert and removed unnecessary columns
+dataset$TIMESTAMP <- mdy_hms(paste(dataset$OCCUR_DATE,dataset$OCCUR_TIME))
+dataset = dataset %>% mutate_at(factors,factor)
+dataset = subset(dataset,select = !(names(dataset) %in% remove))
+
+# Display updated dataset
+summary(dataset)
+```
+
+## Borough-Wise Shooting Incidents
+
+```{r}
+
+borough_counts <- table(dataset$BORO)
+borough_counts_df <- data.frame(BORO = names(borough_counts), Incidents = as.vector(borough_counts))
+
+ggplot(borough_counts_df, aes(x = BORO, y = Incidents, fill = BORO)) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(title = "Number of Shooting Incidents by Borough",
+       x = "Borough",
+       y = "Number of Incidents") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The bar chart shows the number of shooting incidents by borough in New York City, indicating that Brooklyn experiences the most shootings, while Staten Island has the least. There's a noticeable disparity in the number of incidents across the boroughs. Factors such as population density, socioeconomic status, and policing could explain these differences.
+
+For further investigation, it would be important to consider:
+
+1.  The underlying reasons for the variation in shooting incidents across boroughs, examining aspects like economic conditions and law enforcement distribution.
+2.  The trend of these numbers over time, to determine if the problem is worsening or improving.
+3.  Effective measures that have been implemented in certain boroughs to reduce shootings, providing potential strategies for other areas.
+
+## Shooting Incidents Over Time
+
+```{r}
+monthly_incident_counts <- aggregate(INCIDENT_KEY ~ format(TIMESTAMP, "%Y-%m-%d %H:%M:%S"), data = dataset, FUN = length)
+
+# Create the time series line chart
+ggplot(monthly_incident_counts, aes(x = as.Date(`format(TIMESTAMP, "%Y-%m-%d %H:%M:%S")`), y = INCIDENT_KEY)) +
+  geom_line(color = "green") +
+  geom_point(color = "green", size = 2) +
+  labs(title = "Shooting Incidents Over Time",
+       x = "Year-Month",
+       y = "Number of Incidents") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The time series chart depicts shooting incidents over time. The chart shows variability in the number of shootings per month, with some months experiencing spikes well above the average.
+
+The chart indicates that, while there are fluctuations, there is no clear upward or downward trend; the number of shootings appears relatively consistent over time, with occasional outliers that could be due to specific incidents or reporting anomalies.
+
+Considering the patterns over time, the following questions emerge as important:
+
+1.  What causes the spikes in shooting incidents? Identifying the factors that lead to these increases could be critical for preventive measures.
+
+2.  Is there seasonality to the shootings? Determining if there is a pattern based on the time of year could inform targeted interventions.
+
+3.  What impact do policy changes or significant events have on the frequency of shootings? It would be valuable to correlate policy changes or events with the data to evaluate their effectiveness.
+
+## Conclusion and Biases
+
+The data from both the bar chart and the time series chart offer a comprehensive view of shooting incidents in New York City, broken down by borough and over time. The bar chart shows that Brooklyn has the highest number of shooting incidents, followed by the Bronx, Manhattan, Queens, and Staten Island, which has the fewest. The time series chart, however, indicates that the overall frequency of shootings across the city does not exhibit a clear long-term trend, despite monthly fluctuations and occasional peaks.
+
+In summarizing these findings, it's crucial to note potential sources of bias. The bar chart could be influenced by reporting biases or differences in law enforcement practices across boroughs. The time series data might be affected by changes in data collection methods or by external events that temporarily impact crime rates, such as social unrest or policing changes.
+
+To address these potential biases, a multi-faceted approach is needed. Ensuring consistent and transparent reporting practices across all boroughs would help to reduce discrepancies in the data. Additionally, correlating shooting incident reports with independent data sources, like hospital admissions for gunshot injuries, could provide a more robust understanding of the situation. It's also important to consider the context in which spikes in violence occur, including socio-economic factors, to attribute causes more accurately.
+
+As for personal bias, I did a experience a form of conformation bias when the data showed that Brooklyn has the highest incidents reported. This bias stems from depictions of crime in that neighborhood in popular movies and TV shows. I do not think the bias effected the simple analysis done in the report as it was based solely on the actual data reported rather the perceptions shaped by media, however I would recommend that additional sets of data and studies be used to corroborate the findings to ensure an inbiased reporting.
